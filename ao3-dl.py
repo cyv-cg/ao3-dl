@@ -1,9 +1,7 @@
 from weasyprint import HTML
 from bs4 import BeautifulSoup
-import fitz
 import requests
 import sys
-import subprocess
 
 
 def prepend(data, content):
@@ -76,6 +74,12 @@ def ao3_dl(response):
 	content = prepend(
 		(
 			f'<div class="meta">'
+			+ f'<title>{title.text.strip()}</title>'
+			+ f'<meta name="author" content="{author.text.strip()}">'
+			+ f'<meta name="description" content="{";".join(data["fandoms"])}">'
+			+ f'<meta name="keywords" content="{";".join(data["tags"])}">'
+			+ f'<meta name="dcterms.created" content="{data["published"]}">'
+			+ f'<meta name="dcterms.modified" content="{data["updated"]}">'
 			+ compile_tag(data, "rating")
 			+ compile_tag(data, "warning", "Archive Warning")
 			+ compile_tag(data, "category")
@@ -102,30 +106,15 @@ def ao3_dl(response):
 		content = prepend('<hr>', content)
 	
 	file_name = f"{author.text.strip()} - {title.text.strip()}"
-	result_file = open(f"{file_name}.temp.pdf", "w+b")
+	result_file = open(f"{file_name}.pdf", "w+b")
 	content = prep_for_print(content)
-	HTML(string=content).write_pdf(result_file, stylesheets=["style.css"])
+	HTML(string=content).write_pdf(result_file, stylesheets=["style.css"], custom_metadata=True)
 
 	with open("out.html", "w") as file:
 		file.write(content)
 		file.close()
 
-	try:
-		document = fitz.open(f"{file_name}.temp.pdf")
-		document.set_metadata({
-			"title": title.text.strip(),
-			"author": author.text.strip(),
-			"subject": ";".join(data["fandoms"]),
-			"keywords": ";".join(data["tags"])
-		})
-		document.save(f"{file_name}.pdf")
-		document.close()
-
-		print(f"Finished downloading '{title.text.strip()}' by {author.text.strip()}")
-	except Exception as ex:
-		print(f"Error: {ex}")
-	finally:
-		subprocess.run(["rm", f"{file_name}.temp.pdf"])
+	print(f"Finished downloading '{title.text.strip()}' by {author.text.strip()}")
 
 
 if __name__ == "__main__":
@@ -141,8 +130,11 @@ if __name__ == "__main__":
 		print("Input must be the ID of the work")
 		exit()
 
-	response = requests.get(src)
-	if response.status_code == 200:
-		ao3_dl(response)
-	else:
-		print(response.status_code)
+	try:
+		response = requests.get(src)
+		if response.status_code == 200:
+			ao3_dl(response)
+		else:
+			print(response.status_code)
+	except Exception as ex:
+		print(f"Error: {ex}")
