@@ -127,8 +127,8 @@ def ao3_dl(response, exp_html=False):
 			f'<div class="meta">'
 			+ f'<title>{build_meta_title(title.text.strip(), data["series"])}</title>'
 			+ f'<meta name="author" content="{author.text.strip()}">'
-			+ f'<meta name="description" content="{";".join(data["fandoms"])}">'  if data["fandoms"] != None else ""
-			+ f'<meta name="keywords" content="{";".join(data["tags"])}">' if data["tags"] != None else ""
+			+ f'<meta name="description" content="{";".join(data["fandoms"]) if data["fandoms"] != None else ""}">'
+			+ f'<meta name="keywords" content="{";".join(data["tags"]) if data["tags"] != None else ""}">'
 			+ f'<meta name="dcterms.created" content="{data["published"]}">'
 			+ f'<meta name="dcterms.modified" content="{data["updated"]}">'
 			+ compile_series(data)
