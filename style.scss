@@ -17,6 +17,7 @@
 }
 
 .meta {
+	padding-top: 5px;
 	padding-bottom: 5px;
 	.tag {
 		font-weight: bold;
@@ -46,6 +47,16 @@
 	justify-content: center;
 	align-items: center;
 	margin-top: -1.5rem;
+}
+
+.series {
+	display: flex;
+	justify-content: center;
+	margin: 1rem 0 1rem 0;
+	
+	.entry {
+		list-style: none;
+	}
 }
 
 .chapter.preface.group {

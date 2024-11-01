@@ -2,7 +2,7 @@ from weasyprint import HTML
 from bs4 import BeautifulSoup
 import requests
 import sys
-
+import re
 
 def prepend(data, content):
 	if type(content) != str:
@@ -25,9 +25,27 @@ def get_meta_tags(meta, class_):
 		return tags
 	else:
 		return None
+def get_series(meta):
+	element = meta.find("dd", class_="series")
+	if element == None:
+		return None
+	
+	series = []
+	for tag in element.find_all("span", class_="series"):
+		part = int(re.search(r'\d+', tag.find("span", class_="position").text).group())
+		name = tag.find("a").text
+		series.append(
+			{
+				"part": part,
+				"name": name
+			}
+		)
+
+	return series
 
 def get_meta(meta):
 	metadata = {
+		"series": get_series(meta),
 		"rating": get_single_tag(meta, "rating tags"),
 		"warning": get_single_tag(meta, "warning tags"),
 		"category": get_meta_tags(meta, "category tags"),
@@ -53,8 +71,26 @@ def compile_tag(meta, tag, tag_name=None):
 		return f'<div><span class="meta tag">{tag_name}:</span> {", ".join(data)}</div>'
 	else:
 		return f'<div><span class="meta tag">{tag_name}:</span> {data}</div>'
+def compile_series(meta):
+	if meta["series"] == None:
+		return ""
+	
+	ret_val = '<div class="series"><ul>'
+	for series in meta["series"]:
+		ret_val += f'<li class="entry">{series["name"]} - Part {series["part"]}</li>'
+	
+	return ret_val + '</ul></div><hr>'
+def build_meta_title(title, series_list):
+	if series_list == None or len(series_list) == 0:
+		return title
+	
+	meta_title = f'{title.replace("|", "_")}'
+	for series in series_list:
+		meta_title += f'|{series["name"]}({series["part"]})'
+	
+	return meta_title
 
-def ao3_dl(response):
+def ao3_dl(response, exp_html=False):
 	soup = BeautifulSoup(response.text, "html.parser")
 
 	content = soup.find("div", id="chapters")
@@ -74,12 +110,13 @@ def ao3_dl(response):
 	content = prepend(
 		(
 			f'<div class="meta">'
-			+ f'<title>{title.text.strip()}</title>'
+			+ f'<title>{build_meta_title(title.text.strip(), data["series"])}</title>'
 			+ f'<meta name="author" content="{author.text.strip()}">'
 			+ f'<meta name="description" content="{";".join(data["fandoms"])}">'
 			+ f'<meta name="keywords" content="{";".join(data["tags"])}">'
 			+ f'<meta name="dcterms.created" content="{data["published"]}">'
 			+ f'<meta name="dcterms.modified" content="{data["updated"]}">'
+			+ compile_series(data)
 			+ compile_tag(data, "rating")
 			+ compile_tag(data, "warning", "Archive Warning")
 			+ compile_tag(data, "category")
@@ -108,11 +145,12 @@ def ao3_dl(response):
 	file_name = f"{author.text.strip()} - {title.text.strip()}"
 	result_file = open(f"{file_name}.pdf", "w+b")
 	content = prep_for_print(content)
-	HTML(string=content).write_pdf(result_file, stylesheets=["style.css"], custom_metadata=True)
+	HTML(string=content).write_pdf(result_file, stylesheets=["style.css"])
 
-	with open("out.html", "w") as file:
-		file.write(content)
-		file.close()
+	if exp_html:
+		with open("out.html", "w") as file:
+			file.write(content)
+			file.close()
 
 	print(f"Finished downloading '{title.text.strip()}' by {author.text.strip()}")
 
