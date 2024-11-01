@@ -127,8 +127,8 @@ def ao3_dl(response, exp_html=False):
 			f'<div class="meta">'
 			+ f'<title>{build_meta_title(title.text.strip(), data["series"])}</title>'
 			+ f'<meta name="author" content="{author.text.strip()}">'
-			+ f'<meta name="description" content="{";".join(data["fandoms"])}">'
-			+ f'<meta name="keywords" content="{";".join(data["tags"])}">'
+			+ f'<meta name="description" content="{";".join(data["fandoms"])}">'  if data["fandoms"] != None else ""
+			+ f'<meta name="keywords" content="{";".join(data["tags"])}">' if data["tags"] != None else ""
 			+ f'<meta name="dcterms.created" content="{data["published"]}">'
 			+ f'<meta name="dcterms.modified" content="{data["updated"]}">'
 			+ compile_series(data)
@@ -157,7 +157,7 @@ def ao3_dl(response, exp_html=False):
 	if author != None or title != None:
 		content = prepend('<hr>', content)
 	
-	file_name = f"{author.text.strip()} - {title.text.strip()}"
+	file_name = author.text.strip() + " - " + title.text.strip().replace("/", "-")
 	result_file = open(f"{file_name}.pdf", "w+b")
 	content = prep_for_print(content)
 	HTML(string=content).write_pdf(result_file, stylesheets=["style.css"])
