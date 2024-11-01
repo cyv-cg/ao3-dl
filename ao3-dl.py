@@ -4,6 +4,14 @@ import requests
 import sys
 import re
 
+def get_series_length(id):
+	response = requests.get(f"https://archiveofourown.org/series/{id}")
+	if response.status_code != 200:
+		raise Exception(response.status_code)
+
+	soup = BeautifulSoup(response.text, "html.parser")
+	return soup.find("dd", class_="works").text
+
 def prepend(data, content):
 	if type(content) != str:
 		content = content.prettify()
@@ -34,10 +42,15 @@ def get_series(meta):
 	for tag in element.find_all("span", class_="series"):
 		part = int(re.search(r'\d+', tag.find("span", class_="position").text).group())
 		name = tag.find("a").text
+		try:
+			length = get_series_length(int(re.search(r'\d+', tag.find("a").get("href")).group()))
+		except:
+			length = None
 		series.append(
 			{
 				"part": part,
-				"name": name
+				"name": name,
+				"length": length
 			}
 		)
 
@@ -77,7 +90,8 @@ def compile_series(meta):
 	
 	ret_val = '<div class="series"><ul>'
 	for series in meta["series"]:
-		ret_val += f'<li class="entry">{series["name"]} - Part {series["part"]}</li>'
+		length = f' of {series["length"]}' if series["length"] != None else ""
+		ret_val += f'<li class="entry">{series["name"]} - Part {series["part"]}{length}</li>'
 	
 	return ret_val + '</ul></div><hr>'
 def build_meta_title(title, series_list):
@@ -86,7 +100,8 @@ def build_meta_title(title, series_list):
 	
 	meta_title = f'{title.replace("|", "_")}'
 	for series in series_list:
-		meta_title += f'|{series["name"]}({series["part"]})'
+		length = f'/{series["length"]}' if series["length"] != None else ""
+		meta_title += f'|{series["name"]}({series["part"]}{length})'
 	
 	return meta_title
 
