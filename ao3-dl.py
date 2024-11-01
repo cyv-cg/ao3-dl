@@ -4,6 +4,13 @@ import requests
 import sys
 import re
 
+def extract_int(text):
+	match = re.search(r'\d+', str(text))
+	if match != None:
+		return int(match.group())
+	else:
+		return None
+
 def get_series_length(id):
 	response = requests.get(f"https://archiveofourown.org/series/{id}")
 	if response.status_code != 200:
@@ -40,10 +47,10 @@ def get_series(meta):
 	
 	series = []
 	for tag in element.find_all("span", class_="series"):
-		part = int(re.search(r'\d+', tag.find("span", class_="position").text).group())
+		part = extract_int(tag.find("span", class_="position"))
 		name = tag.find_all("a")[0 if part == 1 else 1].text
 		try:
-			length = get_series_length(int(re.search(r'\d+', tag.find_all("a")[0 if part == 1 else 1].get("href")).group()))
+			length = get_series_length(extract_int(tag.find_all("a")[0 if part == 1 else 1].get("href")))
 		except:
 			length = None
 		series.append(
@@ -105,7 +112,13 @@ def build_meta_title(title, series_list):
 	
 	return meta_title
 
-def ao3_dl(response, exp_html=False):
+def series_data(list, name):
+	for series in list:
+		if name == series["name"]:
+			return series
+	return None
+
+def ao3_dl(response, exp_html=False, series_name=None):
 	soup = BeautifulSoup(response.text, "html.parser")
 
 	content = soup.find("div", id="chapters")
@@ -157,7 +170,12 @@ def ao3_dl(response, exp_html=False):
 	if author != None or title != None:
 		content = prepend('<hr>', content)
 	
-	file_name = author.text.strip() + " - " + title.text.strip().replace("/", "-")
+	active_series = series_data(data["series"], series_name)
+	index = str(active_series["part"])
+	length = str(active_series["length"])
+	series_name = f"{series_name} ({index.zfill(len(length))} of {length}): " if series_name != None else ""
+
+	file_name = series_name + author.text.strip() + " - " + title.text.strip().replace("/", "-")
 	result_file = open(f"{file_name}.pdf", "w+b")
 	content = prep_for_print(content)
 	HTML(string=content).write_pdf(result_file, stylesheets=["style.css"])
@@ -169,25 +187,59 @@ def ao3_dl(response, exp_html=False):
 
 	print(f"Finished downloading '{title.text.strip()}' by {author.text.strip()}")
 
+def get_series_works(url):
+	response = requests.get(url)
+	if response.status_code != 200:
+		raise Exception(response.status_code)
+	
+	works = []
+	
+	soup = BeautifulSoup(response.text, "html.parser")
+	for li in soup.find("ul", class_="series work index group").find_all(recursive=False):
+		id = li.get("id").replace("work_", "")
+		works.append(f"https://archiveofourown.org/works/{id}?view_full_work=true")
+	
+	return (works, soup.find("h2", class_="heading").text.strip())
+
+def get_dl_loc(url):
+	id = extract_int(url)
+
+	if "works/" in url or url.isdigit():
+		return {
+			"works": [ f"https://archiveofourown.org/works/{id}?view_full_work=true" ],
+			"series": None
+		}
+	elif "series/" in url:
+		works = get_series_works(url)
+		return {
+			"works": works[0],
+			"series": works[1]
+		}
+
+	return None
 
 if __name__ == "__main__":
 	if len(sys.argv) < 2:
-		print("No work ID given")
+		print("No work given")
 		exit()
 
 	id = sys.argv[1]
+	match = re.search(r"((?:https:\/\/)?archiveofourown\.org\/(?:works|series)\/\d+|\d+)", id)
 
-	if id.isdigit():
-		src = f"https://archiveofourown.org/works/{id}?view_full_work=true"
-	else:
-		print("Input must be the ID of the work")
+	if match == None:
+		print("Invalid link")
 		exit()
 
-	try:
-		response = requests.get(src)
-		if response.status_code == 200:
-			ao3_dl(response)
-		else:
-			print(response.status_code)
-	except Exception as ex:
-		print(f"Error: {ex}")
+	src = get_dl_loc(match.group(0))
+
+	for work in src["works"]:
+		try:
+			response = requests.get(work)
+			if response.status_code == 200:
+				if src["series"] != None:
+					print(f"""Downloading '{src["series"]}':""")
+				ao3_dl(response, series_name=src["series"])
+			else:
+				print(response.status_code)
+		except Exception as ex:
+			print(f"Error: {ex}")
