@@ -91,7 +91,7 @@ def compile_series(meta):
 	ret_val = '<div class="series"><ul>'
 	for series in meta["series"]:
 		length = f' of {series["length"]}' if series["length"] != None else ""
-		ret_val += f'<li class="entry">{series["name"]} - Part {series["part"]}{length}</li>'
+		ret_val += f'<li class="entry"><span class="name">{series["name"]}</span> - Part {series["part"]}{length}</li>'
 	
 	return ret_val + '</ul></div><hr>'
 def build_meta_title(title, series_list):
