@@ -41,9 +41,9 @@ def get_series(meta):
 	series = []
 	for tag in element.find_all("span", class_="series"):
 		part = int(re.search(r'\d+', tag.find("span", class_="position").text).group())
-		name = tag.find("a").text
+		name = tag.find_all("a")[0 if part == 1 else 1].text
 		try:
-			length = get_series_length(int(re.search(r'\d+', tag.find("a").get("href")).group()))
+			length = get_series_length(int(re.search(r'\d+', tag.find_all("a")[0 if part == 1 else 1].get("href")).group()))
 		except:
 			length = None
 		series.append(
