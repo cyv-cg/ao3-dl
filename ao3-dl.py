@@ -183,7 +183,7 @@ def ao3_dl(response, exp_html=False, series_name=None):
 
 	file_name = series_prefix + author.text.strip() + " - " + title.text.strip().replace("/", "-")
 
-	directory = series_name if series_name != None else title.text.strip()
+	directory = series_name if series_name != None else title.text.strip().replace("/", "-")
 	os.makedirs(directory, exist_ok=True)
 
 	result_file = open(f"{directory}/{file_name}.pdf", "w+b")
