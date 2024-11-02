@@ -2,7 +2,7 @@ from weasyprint import HTML
 from bs4 import BeautifulSoup
 from pathlib import Path
 import requests
-import sys
+import argparse
 import re
 import os
 
@@ -192,7 +192,7 @@ def ao3_dl(response, exp_html=False, series_name=None):
 	HTML(string=content).write_pdf(result_file, stylesheets=[f"{Path(__file__).resolve().parent}/style.css"])
 
 	if exp_html:
-		with open("out.html", "w") as file:
+		with open(f"{directory}/{file_name}.html", "w") as file:
 			file.write(content)
 			file.close()
 
@@ -230,12 +230,18 @@ def get_dl_loc(url):
 	return None
 
 if __name__ == "__main__":
-	if len(sys.argv) < 2:
+	parser = argparse.ArgumentParser(description='Utility for downloading a work or series from archiveofourown.org.')
+
+	parser.add_argument('url', type=str, help='The URL of the work or series to download. Also accepts an ID and parses it as a work.')
+	parser.add_argument('--export-as-html', action='store_true', help='Will export the parsed work as raw html as well as a pdf.')
+
+	args = parser.parse_args()
+
+	if args.url == None:
 		print("No work given")
 		exit()
 
-	id = sys.argv[1]
-	match = re.search(r"((?:https:\/\/)?archiveofourown\.org\/(?:works|series)\/\d+|\d+)", id)
+	match = re.search(r"((?:https:\/\/)?archiveofourown\.org\/(?:works|series)\/\d+|\d+)", args.url)
 
 	if match == None:
 		print("Invalid link")
@@ -249,7 +255,7 @@ if __name__ == "__main__":
 		try:
 			response = requests.get(work)
 			if response.status_code == 200:
-				ao3_dl(response, series_name=src["series"])
+				ao3_dl(response, series_name=src["series"], exp_html=args.export_as_html)
 			else:
 				print(response.status_code)
 		except Exception as ex:
