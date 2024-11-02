@@ -1,5 +1,6 @@
 from weasyprint import HTML
 from bs4 import BeautifulSoup
+from pathlib import Path
 import requests
 import sys
 import re
@@ -28,7 +29,7 @@ def prepend(data, content):
 	return data + content
 
 def prep_for_print(content):
-	return f'<head><meta charset="utf-8"><link rel="stylesheet" type="text/css" href="style.css"></head><body class="wrapper">{content}</body>'
+	return f'<head><meta charset="utf-8"><link rel="stylesheet" type="text/css" href="{Path(__file__).resolve().parent}/style.css"></head><body class="wrapper">{content}</body>'
 
 def get_single_tag(meta, class_):
 	return meta.find("dd", class_=class_).text.strip() if meta.find("dd", class_=class_) != None else None
@@ -188,7 +189,7 @@ def ao3_dl(response, exp_html=False, series_name=None):
 
 	result_file = open(f"{directory}/{file_name}.pdf", "w+b")
 	content = prep_for_print(content)
-	HTML(string=content).write_pdf(result_file, stylesheets=["style.css"])
+	HTML(string=content).write_pdf(result_file, stylesheets=[f"{Path(__file__).resolve().parent}/style.css"])
 
 	if exp_html:
 		with open("out.html", "w") as file:
