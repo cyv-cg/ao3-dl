@@ -114,10 +114,12 @@ def build_meta_title(title, series_list):
 	return meta_title
 
 def series_data(list, name):
+	if list == None:
+		return None
+
 	for series in list:
 		if name == series["name"]:
 			return series
-	return None
 
 def ao3_dl(response, exp_html=False, series_name=None):
 	soup = BeautifulSoup(response.text, "html.parser")
@@ -173,9 +175,11 @@ def ao3_dl(response, exp_html=False, series_name=None):
 	
 	
 	active_series = series_data(data["series"], series_name)
-	index = str(active_series["part"])
-	length = str(active_series["length"])
-	series_prefix = f"({index.zfill(len(length))} of {length}) " if series_name != None else ""
+	series_prefix = ""
+	if active_series != None:
+		index = str(active_series["part"])
+		length = str(active_series["length"])
+		series_prefix = f"({index.zfill(len(length))} of {length}) " if series_name != None else ""
 
 	file_name = series_prefix + author.text.strip() + " - " + title.text.strip().replace("/", "-")
 
