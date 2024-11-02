@@ -1,6 +1,11 @@
 # ao3-dl
 
-Utility for downloading a work or series from archiveofourown.org.
+Utility for downloading a work or series from Archive of Our Own.
+
+Currently accepts inputs in the following forms:
+- `https://archiveofourown.org/works/123456`
+- `123456		(interprets as https://archiveofourown.org/works/123456)`
+- `archiveofourown.org/series/123456`
 
 ## Usage
 
