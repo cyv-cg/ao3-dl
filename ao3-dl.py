@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import requests
 import sys
 import re
+import os
 
 def extract_int(text):
 	match = re.search(r'\d+', str(text))
@@ -170,13 +171,18 @@ def ao3_dl(response, exp_html=False, series_name=None):
 	if author != None or title != None:
 		content = prepend('<hr>', content)
 	
+	
 	active_series = series_data(data["series"], series_name)
 	index = str(active_series["part"])
 	length = str(active_series["length"])
-	series_name = f"{series_name} ({index.zfill(len(length))} of {length}): " if series_name != None else ""
+	series_prefix = f"({index.zfill(len(length))} of {length}) " if series_name != None else ""
 
-	file_name = series_name + author.text.strip() + " - " + title.text.strip().replace("/", "-")
-	result_file = open(f"{file_name}.pdf", "w+b")
+	file_name = series_prefix + author.text.strip() + " - " + title.text.strip().replace("/", "-")
+
+	directory = series_name if series_name != None else title.text.strip()
+	os.makedirs(directory, exist_ok=True)
+
+	result_file = open(f"{directory}/{file_name}.pdf", "w+b")
 	content = prep_for_print(content)
 	HTML(string=content).write_pdf(result_file, stylesheets=["style.css"])
 
@@ -231,13 +237,13 @@ if __name__ == "__main__":
 		exit()
 
 	src = get_dl_loc(match.group(0))
+	if src["series"] != None:
+		print(f"""Downloading '{src["series"]}':""")
 
 	for work in src["works"]:
 		try:
 			response = requests.get(work)
 			if response.status_code == 200:
-				if src["series"] != None:
-					print(f"""Downloading '{src["series"]}':""")
 				ao3_dl(response, series_name=src["series"])
 			else:
 				print(response.status_code)
