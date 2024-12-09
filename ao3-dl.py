@@ -255,6 +255,8 @@ if __name__ == "__main__":
 		try:
 			response = requests.get(work)
 			if response.status_code == 200:
+				if "restricted=true" in response.url:
+					raise Exception(f"{args.url} is restricted, you'll need to log in and download manually :(")
 				ao3_dl(response, series_name=src["series"], exp_html=args.export_as_html)
 			else:
 				print(response.status_code)
