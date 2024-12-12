@@ -1,27 +1,16 @@
-from weasyprint import HTML
 from bs4 import BeautifulSoup
+from weasyprint import HTML
 from pathlib import Path
+import traceback
 import requests
 import argparse
 import re
 import os
 
-def extract_int(text):
-	match = re.search(r'\d+', str(text))
-	if match != None:
-		return int(match.group())
-	else:
-		return None
+from models import NavStr, Series, Work
+import helpers
 
-def get_series_length(id):
-	response = requests.get(f"https://archiveofourown.org/series/{id}")
-	if response.status_code != 200:
-		raise Exception(response.status_code)
-
-	soup = BeautifulSoup(response.text, "html.parser")
-	return soup.find("dd", class_="works").text
-
-def prepend(data, content):
+def prepend(data: NavStr, content: NavStr) -> NavStr:
 	if type(content) != str:
 		content = content.prettify()
 	if type(data) != str:
@@ -31,160 +20,64 @@ def prepend(data, content):
 def prep_for_print(content):
 	return f'<head><meta charset="utf-8"><link rel="stylesheet" type="text/css" href="{Path(__file__).resolve().parent}/style.css"></head><body class="wrapper">{content}</body>'
 
-def get_single_tag(meta, class_):
-	return meta.find("dd", class_=class_).text.strip() if meta.find("dd", class_=class_) != None else None
-def get_meta_tags(meta, class_):
-	tags = []
-	element = meta.find("dd", class_=class_)
-	if element != None:
-		for x in element.find_all("a"):
-			tags.append(x.text.strip())
-		return tags
-	else:
-		return None
-def get_series(meta):
-	element = meta.find("dd", class_="series")
-	if element == None:
-		return None
+def ao3_dl(response: requests.Response, work: Work, exp_html: bool = False, series: Series = None) -> None:
+	soup: BeautifulSoup = BeautifulSoup(response.text, "html.parser")
+
+	content: NavStr = soup.find("div", id="chapters")
 	
-	series = []
-	for tag in element.find_all("span", class_="series"):
-		part = extract_int(tag.find("span", class_="position"))
-		name = tag.find_all("a")[0 if part == 1 else 1].text
-		try:
-			length = get_series_length(extract_int(tag.find_all("a")[0 if part == 1 else 1].get("href")))
-		except:
-			length = None
-		series.append(
-			{
-				"part": part,
-				"name": name,
-				"length": length
-			}
-		)
-
-	return series
-
-def get_meta(meta):
-	metadata = {
-		"series": get_series(meta),
-		"rating": get_single_tag(meta, "rating tags"),
-		"warning": get_single_tag(meta, "warning tags"),
-		"category": get_meta_tags(meta, "category tags"),
-		"fandoms": get_meta_tags(meta, "fandom tags"),
-		"language": get_single_tag(meta, "language"),
-		"published": get_single_tag(meta, "published"),
-		"updated": get_single_tag(meta, "status"),
-		"words": get_single_tag(meta, "words"),
-		"chapters": get_single_tag(meta, "chapters"),
-		"fandoms": get_meta_tags(meta, "fandom tags"),
-		"relationships": get_meta_tags(meta, "relationship tags"),
-		"characters": get_meta_tags(meta, "character tags"),
-		"tags": get_meta_tags(meta, "freeform tags")
-	}
-	return metadata
-def compile_tag(meta, tag, tag_name=None):
-	if tag_name == None:
-		tag_name = tag.title()
-	data = meta[tag]
-	if data == None:
-		return ""
-	if isinstance(data, list):
-		return f'<div><span class="meta tag">{tag_name}:</span> {", ".join(data)}</div>'
-	else:
-		return f'<div><span class="meta tag">{tag_name}:</span> {data}</div>'
-def compile_series(meta):
-	if meta["series"] == None:
-		return ""
-	
-	ret_val = '<div class="series"><ul>'
-	for series in meta["series"]:
-		length = f' of {series["length"]}' if series["length"] != None else ""
-		ret_val += f'<li class="entry"><span class="name">{series["name"]}</span> - Part {series["part"]}{length}</li>'
-	
-	return ret_val + '</ul></div><hr>'
-def build_meta_title(title, series_list):
-	if series_list == None or len(series_list) == 0:
-		return title
-	
-	meta_title = f'{title.replace("|", "_")}'
-	for series in series_list:
-		length = f'/{series["length"]}' if series["length"] != None else ""
-		meta_title += f'|{series["name"]}({series["part"]}{length})'
-	
-	return meta_title
-
-def series_data(list, name):
-	if list == None:
-		return None
-
-	for series in list:
-		if name == series["name"]:
-			return series
-
-def ao3_dl(response, exp_html=False, series_name=None):
-	soup = BeautifulSoup(response.text, "html.parser")
-
-	content = soup.find("div", id="chapters")
-	title = soup.find("h2", class_="title heading")
-	author = soup.find("h3", class_="byline heading")
-
-	meta = soup.find("dl", class_="work meta group")
-	data = get_meta(meta)
-
-	if data["chapters"] == "1/1":
+	if work.is_single_chapter:
 		content = prepend('<div style="page-break-after: always"></div>', content)
 
-	summary = soup.find("div", class_="summary module")
+	summary: NavStr = soup.find("div", class_="summary module")
 	content = prepend(summary, content)
 	content = prepend('<hr>', content)
 
 	content = prepend(
 		(
 			f'<div class="meta">'
-			+ f'<title>{build_meta_title(title.text.strip(), data["series"])}</title>'
-			+ f'<meta name="author" content="{author.text.strip()}">'
-			+ f'<meta name="description" content="{";".join(data["fandoms"]) if data["fandoms"] != None else ""}">'
-			+ f'<meta name="keywords" content="{";".join(data["tags"]) if data["tags"] != None else ""}">'
-			+ f'<meta name="dcterms.created" content="{data["published"]}">'
-			+ f'<meta name="dcterms.modified" content="{data["updated"]}">'
-			+ compile_series(data)
-			+ compile_tag(data, "rating")
-			+ compile_tag(data, "warning", "Archive Warning")
-			+ compile_tag(data, "category")
-			+ compile_tag(data, "fandoms")
-			+ compile_tag(data, "characters")
-			+ compile_tag(data, "relationships")
-			+ compile_tag(data, "language")
-			+ compile_tag(data, "published")
-			+ compile_tag(data, "updated")
-			+ compile_tag(data, "words")
-			+ compile_tag(data, "tags")
-			+ compile_tag(data, "chapters")
+			+ f'<title>{helpers.build_meta_title(work.title, work.series)}</title>'
+			+ f'<meta name="author" content="{work.author}">'
+			+ f'<meta name="description" content="{";".join(work.fandoms) if work.fandoms != None else ""}">'
+			+ f'<meta name="keywords" content="{";".join(work.tags) if work.tags != None else ""}">'
+			+ f'<meta name="dcterms.created" content="{work.published}">'
+			+ f'<meta name="dcterms.modified" content="{work.updated}">'
+			+ helpers.compile_series(work.series)
+			+ helpers.compile_tag(work.rating, "rating")
+			+ helpers.compile_tag(work.warning, "warning", "Archive Warning")
+			+ helpers.compile_tag(work.category, "category")
+			+ helpers.compile_tag(work.fandoms, "fandoms")
+			+ helpers.compile_tag(work.characters, "characters")
+			+ helpers.compile_tag(work.relationships, "relationships")
+			+ helpers.compile_tag(work.language, "language")
+			+ helpers.compile_tag(work.published, "published")
+			+ helpers.compile_tag(work.updated, "updated")
+			+ helpers.compile_tag(work.words, "words")
+			+ helpers.compile_tag(work.tags, "tags")
+			+ helpers.compile_tag(work.chapters, "chapters")
 			+ '</div>'
 		), 
 		content
 	)
 
-	if author != None or title != None:
+	if work.author != None or work.title != None:
 		content = prepend('<hr>', content)
 		content = prepend('<hr>', content)
-	content = prepend(f'<div class="author">{author}</div>' if author != None else "", content)
-	content = prepend(f'<div class="title">{title}</div>' if title != None else "", content)
-	if author != None or title != None:
+	content = prepend(f'<div class="author">{work.author}</div>' if work.author != None else "", content)
+	content = prepend(f'<div class="title">{work.title}</div>' if work.title != None else "", content)
+	if work.author != None or work.title != None:
 		content = prepend('<hr>', content)
 	
 	
-	active_series = series_data(data["series"], series_name)
-	series_prefix = ""
+	active_series: Work.SeriesMetadata = work.get_series_data(series.title) if series != None else None
+	series_prefix: str = ""
 	if active_series != None:
-		index = str(active_series["part"])
-		length = str(active_series["length"])
-		series_prefix = f"({index.zfill(len(length))} of {length}) " if series_name != None else ""
+		index: str = str(active_series.part)
+		length: str = str(active_series.length)
+		series_prefix = f"({index.zfill(len(length))} of {length}) " if series.title != None else ""
 
-	file_name = series_prefix + author.text.strip() + " - " + title.text.strip().replace("/", "-")
+	file_name: str = series_prefix + work.author + " - " + work.title.replace("/", "-")
 
-	directory = series_name if series_name != None else title.text.strip().replace("/", "-")
+	directory = series.title if series != None else work.title.replace("/", "-")
 	os.makedirs(directory, exist_ok=True)
 
 	result_file = open(f"{directory}/{file_name}.pdf", "w+b")
@@ -196,38 +89,29 @@ def ao3_dl(response, exp_html=False, series_name=None):
 			file.write(content)
 			file.close()
 
-	print(f"Finished downloading '{title.text.strip()}' by {author.text.strip()}")
+	print(f"Finished downloading '{work.title}' by {work.author}")
 
-def get_series_works(url):
-	response = requests.get(url)
-	if response.status_code != 200:
-		raise Exception(response.status_code)
-	
-	works = []
-	
-	soup = BeautifulSoup(response.text, "html.parser")
-	for li in soup.find("ul", class_="series work index group").find_all(recursive=False):
-		id = li.get("id").replace("work_", "")
-		works.append(f"https://archiveofourown.org/works/{id}?view_full_work=true")
-	
-	return (works, soup.find("h2", class_="heading").text.strip())
-
-def get_dl_loc(url):
-	id = extract_int(url)
+def parse_works(url: str) -> tuple[Work | None, Series | None] | None:
+	id = helpers.extract_int(url)
 
 	if "works/" in url or url.isdigit():
-		return {
-			"works": [ f"https://archiveofourown.org/works/{id}?view_full_work=true" ],
-			"series": None
-		}
+		return Work(id), None
 	elif "series/" in url:
-		works = get_series_works(url)
-		return {
-			"works": works[0],
-			"series": works[1]
-		}
+		return None, Series(id)
 
 	return None
+
+def dl_work(work: Work, series: Series = None, exp_html: bool = False) -> None:
+	try:
+		response = requests.get(work.url())
+		if response.status_code == 200:
+			if "restricted=true" in response.url:
+				raise Exception(f"{args.url} is restricted, you'll need to log in and download manually :(")
+			ao3_dl(response=response, work=work, series=series, exp_html=exp_html)
+		else:
+			print(response.status_code)
+	except Exception as ex:
+		print(f"Error: {ex}\n{traceback.print_exc()}")
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Utility for downloading a work or series from archiveofourown.org.')
@@ -241,24 +125,17 @@ if __name__ == "__main__":
 		print("No work given")
 		exit()
 
-	match = re.search(r"((?:https:\/\/)?archiveofourown\.org\/(?:works|series)\/\d+|\d+)", args.url)
+	match: re.Match[str] = re.search(r"((?:https:\/\/)?archiveofourown\.org\/(?:works|series)\/\d+|\d+)", args.url)
 
 	if match == None:
 		print("Invalid link")
 		exit()
 
-	src = get_dl_loc(match.group(0))
-	if src["series"] != None:
-		print(f"""Downloading '{src["series"]}':""")
-
-	for work in src["works"]:
-		try:
-			response = requests.get(work)
-			if response.status_code == 200:
-				if "restricted=true" in response.url:
-					raise Exception(f"{args.url} is restricted, you'll need to log in and download manually :(")
-				ao3_dl(response, series_name=src["series"], exp_html=args.export_as_html)
-			else:
-				print(response.status_code)
-		except Exception as ex:
-			print(f"Error: {ex}")
+	work, series = parse_works(match.group(0))
+	if series != None:
+		print(f"""Downloading '{series.title}':""")
+		for work in series.works:
+			dl_work(work=work, series=series, exp_html=args.export_as_html)
+	elif work != None:
+		print(f"""Downloading '{work.title}':""")
+		dl_work(work=work, exp_html=args.export_as_html)

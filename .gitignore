@@ -3,3 +3,6 @@
 
 *.pdf
 *.html
+
+.vscode/
+__pycache__/

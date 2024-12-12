@@ -34,18 +34,16 @@
 }
 
 .title {
-	.heading {
-		font-size: xx-large;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-	}
+	font-size: xx-large;
+	display: flex;
+	justify-content: center;
+	align-items: center;
 }
 .author {
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	margin-top: -1.5rem;
+	margin-top: 1.5rem;
 }
 
 .series {
