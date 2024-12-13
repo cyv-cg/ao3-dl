@@ -64,22 +64,24 @@ class Work:
 			self.author = self._get_author(soup)
 
 			self._get_meta(soup)
+			self._get_attached_series(soup)
 
 			self.chapter_list = []
-			for i in range(self.released_chapters):
-				title: str | None = self._chapter_title(soup, i + 1)
+			if not self.is_single_chapter:
+				for i in range(self.released_chapters):
+					title: str | None = self._chapter_title(soup, i + 1)
 
-				content: NavStr = self._get_chapter_content(soup, i + 1)
-				title_tag: NavStr = content.find("h3", class_="title")
+					content: NavStr = self._get_chapter_content(soup, i + 1)
+					title_tag: NavStr = content.find("h3", class_="title")
 
-				if title != None:
-					title = f"Chapter {i + 1}: {title}"
-				else:
-					title = f"Chapter {i + 1}"
+					if title != None:
+						title = f"Chapter {i + 1}: {title}"
+					else:
+						title = f"Chapter {i + 1}"
 
-				title_tag.string = title
+					title_tag.string = title
 
-				self.chapter_list.append(Work.Chapter(title, content.prettify()))
+					self.chapter_list.append(Work.Chapter(title, content.prettify()))
 			
 			self.content = soup.prettify()
 
@@ -99,7 +101,7 @@ class Work:
 	
 	def _chapter_title(self, soup: BeautifulSoup, chapter: int) -> str | None:
 		if self.is_single_chapter:
-			return self.title
+			return None
 		
 		index: int = chapter - 1
 		chapters: ResultSet = soup.findAll("h3", class_="title")
@@ -134,26 +136,23 @@ class Work:
 				return series
 
 	# Gets the number of entries in a given series
-	def _get_series_length(series_id: int) -> int:
+	def _get_series_length(self, series_id: int) -> int:
 		response = requests.get(f"https://archiveofourown.org/series/{series_id}")
 		if response.status_code != 200:
 			raise Exception(response.status_code)
 		soup = BeautifulSoup(response.text, "html.parser")
 		return int(soup.find("dd", class_="works").text)
 	# Retreive metadata about the series (plural) that this work is attached to
-	def _get_attached_series(self, meta: NavStr) -> list[SeriesMetadata]:
-		element: NavStr = meta.find("dd", class_="series")
+	def _get_attached_series(self, soup: BeautifulSoup) -> list[SeriesMetadata]:
+		element: NavStr = soup.find("dd", class_="series")
 		if element == None:
 			return None
 		
 		series: list[Work.SeriesMetadata] = []
 		for tag in element.find_all("span", class_="series"):
-			part = extract_int(tag.find("span", class_="position"))
-			name = tag.find_all("a")[0 if part == 1 else 1].text
-			try:
-				length = self._get_series_length(extract_int(tag.find_all("a")[0 if part == 1 else 1].get("href")))
-			except:
-				length = None
+			part: int = extract_int(tag.find("span", class_="position"))
+			name: str = tag.find_all("a")[0 if part == 1 else 1].text
+			length: int = self._get_series_length(extract_int(tag.find_all("a")[0 if part == 1 else 1].get("href")))
 			series.append(Work.SeriesMetadata(length, part, name))
 
 		return series
@@ -209,19 +208,20 @@ class Series:
 	def __init__(self, id: int):
 		self.id = id
 
-		response = requests.get(self.url)
+		response = requests.get(self.url())
 		if response.status_code != 200:
 			raise Exception(response.status_code)
 		soup = BeautifulSoup(response.text, "html.parser")
 
-		self._get_works(soup)
 		self.length = self._length(soup)
 		self.title = self._get_title(soup)
+		self._get_works(soup)
 
 	def url(self) -> str:
 		return f"https://archiveofourown.org/series/{self.id}"
 	
 	def _get_works(self, soup: BeautifulSoup) -> None:
+		self.works = []
 		for li in soup.find("ul", class_="series work index group").find_all(recursive=False):
 			id = li.get("id").replace("work_", "")
 			self.works.append(Work(id))

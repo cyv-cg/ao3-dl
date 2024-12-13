@@ -109,14 +109,12 @@ def ao3_dl(work: Work, args: argparse.Namespace, series: Series = None) -> None:
 		print_pdf(soup, work, cover_info, directory, file_name)
 		thumbnail = get_thumbnail(directory, file_name)
 		# Print the epub
-		print_epub(cover_info, work, directory, file_name, thumbnail)
+		print_epub(cover_info, work, series, directory, file_name, thumbnail)
 		# Delete the used thumbnail
 		os.remove(thumbnail)
 	if not args.pdf:
 		# Delete the pdf if it's not wanted
 		os.remove(f"{directory}/{file_name}.pdf")
-
-	print(f"Finished downloading '{work.title}' by {work.author}")
 
 def print_pdf(soup: BeautifulSoup, work: Work, cover_data: str, out_dir: str, out_file: str) -> None:
 	content: str = prep_for_print(soup.find("div", id="chapters"), soup, work, cover_data)
@@ -129,7 +127,7 @@ def print_html(soup: BeautifulSoup, work: Work, cover_data: str, out_dir: str, o
 	file.write(content)
 	file.close()
 
-def print_epub(cover_data: str, work: Work, out_dir: str, out_file: str, thumbnail: str) -> None:
+def print_epub(cover_data: str, work: Work, series: Series, out_dir: str, out_file: str, thumbnail: str) -> None:
 	# Initialize with metadata
 	book: epub.EpubBook = epub.EpubBook()
 	book.set_identifier(str(work.id))
@@ -229,5 +227,6 @@ if __name__ == "__main__":
 		print(f"""Downloading '{series.title}':""")
 		for work in series.works:
 			dl_work(work=work, series=series, args=args)
+		print("Finished")
 	elif work != None:
 		dl_work(work=work, args=args)
