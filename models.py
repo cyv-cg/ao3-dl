@@ -1,11 +1,7 @@
-from bs4 import NavigableString, Tag
-from bs4 import BeautifulSoup
-from typing import TypeAlias
+from bs4 import BeautifulSoup, ResultSet
 import requests
 
-from helpers import extract_int
-
-NavStr: TypeAlias = (Tag | NavigableString | None)
+from helpers import extract_int, NavStr
 
 class Work:
 	class SeriesMetadata:
@@ -18,10 +14,22 @@ class Work:
 			self.length = series_length
 			self.part = part_in_series
 	
+	class Chapter:
+		title: str
+		content: NavStr
+
+		def __init__(self, title: str, content: NavStr):
+			self.title = title
+			self.content = content
+	
 	id: int
+	content: NavStr
+	restricted: bool
 
 	title: str
 	author: str
+
+	chapter_list: list[Chapter]
 
 	series: list[SeriesMetadata]
 	rating: str
@@ -46,16 +54,73 @@ class Work:
 		response = requests.get(self.url())
 		if response.status_code != 200:
 			raise Exception(response.status_code)
-		soup = BeautifulSoup(response.text, "html.parser")
+		
+		self.restricted = "restricted=true" in response.url
 
-		self.title = self._get_title(soup)
-		self.author = self._get_author(soup)
+		if not self.restricted:
+			soup = BeautifulSoup(response.text, "html.parser")
 
-		self._get_meta(soup)
+			self.title = self._get_title(soup)
+			self.author = self._get_author(soup)
+
+			self._get_meta(soup)
+
+			self.chapter_list = []
+			for i in range(self.released_chapters):
+				title: str | None = self._chapter_title(soup, i + 1)
+
+				content: NavStr = self._get_chapter_content(soup, i + 1)
+				title_tag: NavStr = content.find("h3", class_="title")
+
+				if title != None:
+					title = f"Chapter {i + 1}: {title}"
+				else:
+					title = f"Chapter {i + 1}"
+
+				title_tag.string = title
+
+				self.chapter_list.append(Work.Chapter(title, content.prettify()))
+			
+			self.content = soup.prettify()
+
 
 	def url(self) -> str:
 		return f"https://archiveofourown.org/works/{self.id}?view_full_work=true"
 	
+	def meta_title(self) -> str:
+		if self.series == None or len(self.series) == 0:
+			return self.title
+		
+		meta_title: str = f'{self.title.replace("|", "_")}'
+		for series in self.series:
+			meta_title += f"|{series.title}({series.part}/{series.length})"
+		
+		return meta_title
+	
+	def _chapter_title(self, soup: BeautifulSoup, chapter: int) -> str | None:
+		if self.is_single_chapter:
+			return self.title
+		
+		index: int = chapter - 1
+		chapters: ResultSet = soup.findAll("h3", class_="title")
+		title: str = chapters[index].text.strip()
+
+		if title == "":
+			return None
+
+		title = title.replace(f"Chapter {chapter}:", "").strip()
+
+		return title
+	def _get_chapter_content(self, soup: BeautifulSoup, chapter: int) -> NavStr:
+		tag: NavStr = None
+
+		if self.is_single_chapter:
+			tag = soup.find("div", class_="userstuff")
+		else:
+			tag = soup.find(class_="chapter", id=f"chapter-{chapter}")
+
+		return tag
+
 	def _get_title(self, soup: BeautifulSoup) -> str:
 		return soup.find("h2", class_="heading").text.strip()
 	def _get_author(self, soup: BeautifulSoup) -> str:
