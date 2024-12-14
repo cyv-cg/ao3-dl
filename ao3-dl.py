@@ -8,7 +8,7 @@ import fitz
 import re
 import os
 
-from models import Series, Work
+from models import Series, Work, User
 from helpers import NavStr
 import helpers
 
@@ -178,13 +178,16 @@ def print_epub(cover_data: str, work: Work, series: Series, out_dir: str, out_fi
 
 	epub.write_epub(f"{out_dir}/{out_file}.epub", book)
 
-def parse_works(url: str) -> tuple[Work | None, Series | None] | None:
+def parse_works(url: str) -> Work | Series | User | None:
 	id = helpers.extract_int(url)
 
 	if "works/" in url or url.isdigit():
-		return Work(id), None
+		return Work(id)
 	elif "series/" in url:
-		return None, Series(id)
+		return Series(id)
+	elif "users/" in url:
+		username: str = url.split("/")[1]
+		return User(username)
 
 	return None
 
@@ -216,17 +219,25 @@ if __name__ == "__main__":
 		print("Select at least 1 output format: --pdf --epub --html")
 		exit()
 
-	match: re.Match[str] = re.search(r"((?:https:\/\/)?archiveofourown\.org\/(?:works|series)\/\d+|\d+)", args.url)
+	match: re.Match[str] = re.search(helpers.MATCH_REGEX, args.url)
 
 	if match == None:
 		print(f"Invalid link: {args.url}")
 		exit()
 
-	work, series = parse_works(match.group(0))
-	if series != None:
+	result: Series | Work | User | None = parse_works(match.group(0))
+	if isinstance(result, Series):
+		series: Series = result
 		print(f"""Downloading '{series.title}':""")
 		for work in series.works:
 			dl_work(work=work, series=series, args=args)
 		print("Finished")
-	elif work != None:
+	elif isinstance(result, Work):
+		work: Work = result
 		dl_work(work=work, args=args)
+	elif isinstance(result, User):
+		user: User = result
+		print(f"""Downloading all works from {user.username}""")
+		for work in user.works:
+			dl_work(work=work, args=args)
+		print("Finished")

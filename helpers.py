@@ -5,6 +5,8 @@ from bs4 import NavigableString, Tag
 
 NavStr: TypeAlias = (Tag | NavigableString | None)
 
+MATCH_REGEX: str = r"((?:https:\/\/)?archiveofourown\.org\/((?:works|series)\/\d+|\d+)|users\/(.+))"
+
 def extract_int(text):
 	match = re.search(r'\d+', str(text))
 	if match != None:

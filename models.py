@@ -104,7 +104,7 @@ class Work:
 			return None
 		
 		index: int = chapter - 1
-		chapters: ResultSet = soup.findAll("h3", class_="title")
+		chapters: ResultSet = soup.find_all("h3", class_="title")
 		title: str = chapters[index].text.strip()
 
 		if title == "":
@@ -231,3 +231,26 @@ class Series:
 	
 	def _length(self, soup: BeautifulSoup) -> int:
 		return int(soup.find("dd", class_="works").text)
+
+class User:
+	works: list[Work]
+	username: str
+
+	def __init__(self, username: str):
+		self.username = username
+		self.works = []
+		
+		response = requests.get(self.url())
+		if response.status_code != 200:
+			raise Exception(response.status_code)
+		soup = BeautifulSoup(response.text, "html.parser")
+
+		work_list: NavStr = soup.find("ol", class_="work index group")
+		for li in work_list.find_all("li"):
+			id: int = extract_int(li.get("id"))
+			if id == None:
+				continue
+			self.works.append(Work(id))
+
+	def url(self) -> str:
+		return f"https://archiveofourown.org/users/{self.username}/works"
