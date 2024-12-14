@@ -6,21 +6,25 @@ Currently accepts inputs in the following forms:
 - `https://archiveofourown.org/works/123456`
 - `123456		(interprets as https://archiveofourown.org/works/123456)`
 - `archiveofourown.org/series/123456`
+- `archiveofourown.org/user/abcdef`
 
 ## Usage
 
-python ao3-dl.py [-h] [--export-as-html] url
+Utility for downloading a work or series from archiveofourown.org.
+
+usage: ao3-dl.py [-h] [--pdf] [--epub] [--html] url
 
 ### positional arguments:
 <pre>
-	url				The URL of the work or series to download. Also accepts an ID and parses  
-					it as a work.
+	url				The URL of the work/series to download. Also accepts an ID and parses it as a work.
 </pre>
 
 ### options:  
 
 <pre>
-	--export-as-html		Will export the parsed work as raw html as well as a pdf.
+	--pdf			Will export the parsed work as a pdf.
+	--epub			Will export the parsed work as an epub.
+	--html			Will export the parsed work as raw html.
 </pre>
 
 
