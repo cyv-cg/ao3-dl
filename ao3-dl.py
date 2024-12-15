@@ -104,11 +104,12 @@ def ao3_dl(work: Work, args: argparse.Namespace, series: Series = None) -> None:
 
 	# Printing
 
+	# Always start by printing a pdf to get a thumbnail for the epub
+	print_pdf(soup, work, cover_info, directory, file_name)
+
 	if args.html:
 		print_html(soup, work, cover_info, directory, file_name)
 	if args.epub:
-		# If we're printing to epub, always start by printing a pdf to get a thumbnail
-		print_pdf(soup, work, cover_info, directory, file_name)
 		thumbnail = get_thumbnail(directory, file_name)
 		# Print the epub
 		print_epub(cover_info, work, series, directory, file_name, thumbnail)
@@ -197,7 +198,7 @@ def dl_work(work: Work, args: argparse.Namespace, series: Series = None) -> None
 	try:
 		if work.restricted:
 			raise Exception(f"{args.url} is restricted, you'll need to log in and download manually :(")
-		print(f"""Downloading '{work.title}':""")
+		print(f"""Downloading '{work.title}'""")
 		ao3_dl(work=work, series=series, args=args)
 	except Exception as ex:
 		print(f"Error: {ex}\n{traceback.print_exc()}")
@@ -230,10 +231,9 @@ if __name__ == "__main__":
 	result: Series | Work | User | None = parse_works(match.group(0))
 	if isinstance(result, Series):
 		series: Series = result
-		print(f"""Downloading '{series.title}':""")
+		print(f"""Downloading '{series.title}'""")
 		for work in series.works:
 			dl_work(work=work, series=series, args=args)
-		print("Finished")
 	elif isinstance(result, Work):
 		work: Work = result
 		dl_work(work=work, args=args)
@@ -242,4 +242,5 @@ if __name__ == "__main__":
 		print(f"""Downloading all works from {user.username}""")
 		for work in user.works:
 			dl_work(work=work, args=args)
-		print("Finished")
+	
+	print("Finished")
