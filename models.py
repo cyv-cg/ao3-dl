@@ -82,6 +82,8 @@ class Work:
 					title_tag.string = title
 
 					self.chapter_list.append(Work.Chapter(title, content.prettify()))
+			else:
+				self.chapter_list.append(Work.Chapter(self.title, soup.find("div", id="chapters").prettify()))
 			
 			self.content = soup.prettify()
 
