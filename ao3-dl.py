@@ -12,6 +12,8 @@ from models import Series, Work, User
 from helpers import NavStr
 import helpers
 
+LOCAL_DIR = Path(__file__).resolve().parent
+
 def get_thumbnail(directory: str, file_name: str) -> str:
 	pdf_path: str = f"{directory}/{file_name}.pdf"
 	pdf_document: fitz.Document = fitz.open(pdf_path)
@@ -35,7 +37,7 @@ def prep_for_print(content: NavStr, soup: BeautifulSoup, work: Work, cover_data:
 	if work.is_single_chapter:
 		content = helpers.append('<div style="page-break-after: always"></div>', content)
 
-	return f'<head><meta charset="utf-8"><link rel="stylesheet" type="text/css" href="{Path(__file__).resolve().parent}/style.css"></head><body class="wrapper">{content}</body>'
+	return f'<head><meta charset="utf-8"><link rel="stylesheet" type="text/css" href="{LOCAL_DIR}/style.css"></head><body class="wrapper">{content}</body>'
 
 def print_series(data: list[Work.SeriesMetadata] | None) -> str:
 	if data == None:
@@ -139,7 +141,7 @@ def print_epub(cover_data: str, work: Work, series: Series, out_dir: str, out_fi
 
 	# Define css style
 	style = ""
-	with open("style.css", "r") as file:
+	with open(f"{LOCAL_DIR}/style.css", "r") as file:
 		style = file.read()
 		file.close()
 
