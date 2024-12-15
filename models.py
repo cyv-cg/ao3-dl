@@ -66,6 +66,10 @@ class Work:
 			self._get_meta(soup)
 			self._get_attached_series(soup)
 
+			# Remove "chapter text" heading
+			for heading in soup.find_all("h3", class_="landmark heading", id="work"):
+				heading.string = ""
+
 			self.chapter_list = []
 			if not self.is_single_chapter:
 				for i in range(self.released_chapters):
