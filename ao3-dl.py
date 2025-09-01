@@ -251,8 +251,9 @@ def main(passed_args: argparse.Namespace) -> None:
 	args: Options = Options(**vars(passed_args))
 
 	config: Optional[dict[str, Any]] = None
-	with open("config.json", "r", encoding="utf-8") as file:
-		config = json.load(file)
+	if os.path.exists(f"{LOCAL_DIR}/config.json"):
+		with open(f"{LOCAL_DIR}/config.json", "r", encoding="utf-8") as file:
+			config = json.load(file)
 
 	if args.url is None:
 		print("No work given")
