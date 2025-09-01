@@ -1,0 +1,7 @@
+{
+	"default_formats": {
+		"pdf": false,
+		"html": false,
+		"epub": true
+	}
+}

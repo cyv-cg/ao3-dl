@@ -5,6 +5,7 @@ from pathlib import Path
 import traceback
 import argparse
 import fitz
+import json
 import re
 import os
 
@@ -99,7 +100,7 @@ def ao3_dl(work: Work, args: argparse.Namespace, series: Series = None) -> None:
 
 	file_name: str = series_prefix + work.author + " - " + work.title.replace("/", "-")
 
-	directory = series.title if series != None else work.title.replace("/", "-")
+	directory = series.title.replace("/", "-") if series != None else work.title.replace("/", "-")
 	os.makedirs(directory, exist_ok=True)
 
 	# Printing
@@ -203,6 +204,9 @@ def dl_work(work: Work, args: argparse.Namespace, series: Series = None) -> None
 	except Exception as ex:
 		print(f"Error: {ex}\n{traceback.print_exc()}")
 
+def has_output_formats(args: argparse.Namespace):
+	return args.pdf or args.epub or args.html
+
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Utility for downloading a work or series from archiveofourown.org.')
 
@@ -214,18 +218,29 @@ if __name__ == "__main__":
 
 	args = parser.parse_args()
 
+	config = None
+	with open("config.json", "r") as file:
+		config = json.load(file)
+
 	if args.url == None:
 		print("No work given")
-		exit()
-	
-	if not (args.pdf or args.epub or args.html):
-		print("Select at least 1 output format: --pdf --epub --html")
 		exit()
 
 	match: re.Match[str] = re.search(helpers.MATCH_REGEX, args.url)
 
 	if match == None:
 		print(f"Invalid link: {args.url}")
+		exit()
+	
+	# Try to get default formats if none are given and the config is defined
+	if not has_output_formats(args) and config != None:
+		print("No output formats given, using defaults")
+		args.pdf = config["default_formats"]["pdf"]
+		args.html = config["default_formats"]["html"]
+		args.epub = config["default_formats"]["epub"]
+	# If there are still no output formats, error out
+	if not has_output_formats(args):
+		print("Select at least 1 output format: --pdf --epub --html")
 		exit()
 
 	result: Series | Work | User | None = parse_works(match.group(0))
