@@ -11,6 +11,7 @@ from typing import Optional, Union, Any
 
 from bs4 import BeautifulSoup, Tag
 from weasyprint import HTML # type: ignore
+import ebookmeta # type: ignore
 from ebooklib import epub # type: ignore
 import fitz # type: ignore
 
@@ -80,8 +81,6 @@ def ao3_dl(work: Work, args: Options, series: Optional[Series]) -> None:
 			{f'<meta name="author" content="{work.author}">'}
 			{f'<meta name="description" content="{";".join(work.fandoms) if work.fandoms is not None else ""}">'}
 			{f'<meta name="keywords" content="{";".join(work.tags) if work.tags is not None else ""}">'}
-			{f'<meta name="dcterms.created" content="{work.published}">'}
-			{f'<meta name="dcterms.modified" content="{work.updated}">'}
 			{_print_series(work.series)}
 			{helpers.compile_tag(work.rating, "rating")}
 			{helpers.compile_tag(work.warning, "warning", "Archive Warning")}
@@ -90,8 +89,8 @@ def ao3_dl(work: Work, args: Options, series: Optional[Series]) -> None:
 			{helpers.compile_tag(work.characters, "characters")}
 			{helpers.compile_tag(work.relationships, "relationships")}
 			{helpers.compile_tag(work.language, "language")}
-			{helpers.compile_tag(work.published, "published")}
-			{helpers.compile_tag(work.updated, "updated")}
+			{helpers.compile_tag(work.published.strftime("%d %b %Y"), "published")}
+			{helpers.compile_tag(work.updated.strftime("%d %b %Y"), "updated") if work.updated is not None else ""}
 			{helpers.compile_tag(work.words, "words")}
 			{helpers.compile_tag(work.tags, "tags")}
 			{helpers.compile_tag(work.chapters, "chapters")}
@@ -130,7 +129,7 @@ def ao3_dl(work: Work, args: Options, series: Optional[Series]) -> None:
 	if args.epub:
 		thumbnail = _get_thumbnail(directory, file_name)
 		# Print the epub
-		print_epub(cover_info, work, directory, file_name, thumbnail)
+		print_epub(cover_info, work, series, directory, file_name, thumbnail)
 		# Delete the used thumbnail
 		os.remove(thumbnail)
 	if not args.pdf:
@@ -147,13 +146,14 @@ def print_html(soup: BeautifulSoup, work: Work, cover_data: str, out_dir: str, o
 	with open(f"{out_dir}/{out_file}.html", "w", encoding="utf-8") as file:
 		file.write(content)
 
-def print_epub(cover_data: str, work: Work, out_dir: str, out_file: str, thumbnail: str) -> None:
+def print_epub(cover_data: str, work: Work, series: Optional[Series], out_dir: str, out_file: str, thumbnail: str) -> None:
 	# Initialize with metadata
 	book: epub.EpubBook = epub.EpubBook()
 	book.set_identifier(str(work.id))
 	book.set_title(work.title)
 	book.set_language(work.language)
 	book.add_author(work.author)
+	book.add_metadata("DC", "date", work.published.isoformat())
 
 	with open(thumbnail, "rb") as f:
 		book.set_cover("thumbnail.jpg", f.read(), create_page=False)
@@ -198,7 +198,24 @@ def print_epub(cover_data: str, work: Work, out_dir: str, out_file: str, thumbna
 	book.add_item(epub.EpubNcx())
 	book.add_item(epub.EpubNav())
 
-	epub.write_epub(f"{out_dir}/{out_file}.epub", book)
+	epub_title: str = f"{out_dir}/{out_file}.epub"
+	epub.write_epub(epub_title, book)
+
+	# Set additional metadata for parsing in Calibre.
+	meta: ebookmeta.Metadata = ebookmeta.get_metadata(epub_title)
+	if series is not None:
+		meta.series = series.title
+		if work.series is not None:
+			for entry in work.series:
+				if entry.id == series.id:
+					meta.series_index = entry.part
+					break
+	if work.fandoms is not None:
+		meta.tag_list.extend(work.fandoms)
+	if work.tags is not None:
+		meta.tag_list.extend(work.tags)
+
+	ebookmeta.set_metadata(epub_title, meta)
 
 def _parse_works(url: str) -> Optional[Union[Work, Series, User]]:
 	content_id: Optional[int] = helpers.extract_int(url)

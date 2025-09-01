@@ -1,5 +1,6 @@
 
 from typing import Optional, Union
+from datetime import datetime
 
 import requests
 from bs4 import BeautifulSoup, ResultSet, Tag, PageElement
@@ -8,11 +9,13 @@ from helpers import extract_int, NavStr
 
 class Work:
 	class SeriesMetadata:
+		id: int
 		title: str
 		length: int
 		part: int
 
-		def __init__(self, series_length: int, part_in_series: int, series_name: str):
+		def __init__(self, series_id: int, series_length: int, part_in_series: int, series_name: str):
+			self.id = series_id
 			self.title = series_name
 			self.length = series_length
 			self.part = part_in_series
@@ -40,8 +43,8 @@ class Work:
 	category: Optional[list[str]]
 	fandoms: Optional[list[str]]
 	language: str
-	published: str
-	updated: str
+	published: datetime
+	updated: Optional[datetime]
 	words: str
 	chapters: str
 	released_chapters: int
@@ -181,7 +184,7 @@ class Work:
 			if series_id is None:
 				continue
 			length: int = self._get_series_length(series_id)
-			series.append(Work.SeriesMetadata(length, part if part is not None else 0, name))
+			series.append(Work.SeriesMetadata(series_id, length, part if part is not None else 0, name))
 
 		return series
 
@@ -211,8 +214,12 @@ class Work:
 		self.category = self._get_multiple_tags(meta, "category tags")
 		self.fandoms = self._get_multiple_tags(meta, "fandom tags")
 		self.language = self._get_single_tag(meta, "language") or ""
-		self.published = self._get_single_tag(meta, "published") or ""
-		self.updated = self._get_single_tag(meta, "status") or ""
+
+		published_date: Optional[str] = self._get_single_tag(meta, "published")
+		self.published = datetime.fromisoformat(published_date) if published_date is not None else datetime.today()
+		modified_date: Optional[str] = self._get_single_tag(meta, "status")
+		self.updated = datetime.fromisoformat(modified_date) if modified_date is not None else None
+
 		self.words = self._get_single_tag(meta, "words") or ""
 		self.relationships = self._get_multiple_tags(meta, "relationship tags")
 		self.characters = self._get_multiple_tags(meta, "character tags")
