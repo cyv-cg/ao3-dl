@@ -1,6 +1,7 @@
 WeasyPrint==63.0
 beautifulsoup4==4.10.0
-requests==2.32.0
+requests==2.32.3
 EbookLib==0.18
 PyMuPdf==1.24.12
 types-beautifulsoup4==4.12.20250516
+ebookmeta==1.2.11
