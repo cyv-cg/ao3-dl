@@ -6,7 +6,7 @@ from bs4 import NavigableString, Tag
 
 NavStr: TypeAlias = Union[Tag, NavigableString, None]
 
-MATCH_REGEX: str = r"((?:https:\/\/)?archiveofourown\.org\/((?:works|series)\/\d+|\d+)|users\/(.+))"
+MATCH_REGEX: str = r"((?:https:\/\/)?archiveofourown\.org\/((?:works|series)\/\d+|\d+)|users\/(.+))|(\d+)"
 
 def extract_int(text: str) -> Optional[int]:
 	match = re.search(r'\d+', str(text))

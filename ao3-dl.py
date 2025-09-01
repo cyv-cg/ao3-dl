@@ -266,10 +266,11 @@ def main(passed_args: argparse.Namespace) -> None:
 
 	# Try to get default formats if none are given and the config is defined
 	if not _has_output_formats(args) and config is not None:
-		print("No output formats given, using defaults")
+		print("No output formats given, using defaults:")
 		args.pdf = config["default_formats"]["pdf"]
 		args.html = config["default_formats"]["html"]
 		args.epub = config["default_formats"]["epub"]
+		print(f'\t{"--pdf " if args.pdf else ""}{"--html " if args.html else ""}{"--epub" if args.epub else ""}')
 	# If there are still no output formats, error out
 	if not _has_output_formats(args):
 		print("Select at least 1 output format: --pdf --epub --html")
