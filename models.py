@@ -60,18 +60,18 @@ class Work:
 	characters: Optional[list[str]]
 	tags: Optional[list[str]]
 
-	def __init__(self, work_id: int, active_series: Optional["Series"] = None):
+	def __init__(self, work_id: int, active_series: Optional["Series"] = None, cookies: Optional[dict[str, str]] = None):
 		self.id = work_id
 		self.active_series = active_series
 
-		attempts: int = 1
+		attempts: int = 0
 		success: bool = False
 
 		print(f"[INFO] Fetching work {work_id}")
 
 		while not success and attempts <= MAX_ATTEMPTS:
 			try:
-				response = requests.get(self.url(), timeout=10)
+				response = requests.get(self.url(), timeout=10, cookies=cookies)
 				if response.status_code != 200:
 					attempts += 1
 					print(f"Unexpected error: {response.status_code}. Retrying {attempts}/{MAX_ATTEMPTS}.")
@@ -120,6 +120,8 @@ class Work:
 
 					self.content = soup.prettify()
 			except ReadTimeout:
+				if attempts >= MAX_ATTEMPTS:
+					break
 				attempts += 1
 				print(f"Connection timed out: Retrying {attempts}/{MAX_ATTEMPTS}.")
 				continue
@@ -192,7 +194,7 @@ class Work:
 
 		print(f"[INFO] Fetching data on linked series {series_id}.")
 
-		attempts: int = 1
+		attempts: int = 0
 		success: bool = False
 
 		while not success and attempts <= MAX_ATTEMPTS:
@@ -210,6 +212,8 @@ class Work:
 					return 0
 				return int(works_list.text)
 			except ReadTimeout:
+				if attempts >= MAX_ATTEMPTS:
+					break
 				attempts += 1
 				print(f"Connection timed out: Retrying {attempts}/{MAX_ATTEMPTS}.")
 				continue
@@ -297,7 +301,7 @@ class Series:
 
 		print(f"[INFO] Fetching series {series_id}")
 
-		attempts: int = 1
+		attempts: int = 0
 		success: bool = False
 
 		while not success and attempts <= MAX_ATTEMPTS:
@@ -315,6 +319,8 @@ class Series:
 				self.title = self._get_title(soup)
 				self._get_works(soup)
 			except ReadTimeout:
+				if attempts >= MAX_ATTEMPTS:
+					break
 				attempts += 1
 				print(f"Connection timed out: Retrying {attempts}/{MAX_ATTEMPTS}.")
 				continue
@@ -364,7 +370,7 @@ class User:
 
 		print(f"[INFO] Fetching works from {username}")
 
-		attempts: int = 1
+		attempts: int = 0
 		success: bool = False
 
 		while not success and attempts <= MAX_ATTEMPTS:
@@ -387,6 +393,8 @@ class User:
 							continue
 						self.works.append(Work(user_id))
 			except ReadTimeout:
+				if attempts >= MAX_ATTEMPTS:
+					break
 				attempts += 1
 				print(f"Connection timed out: Retrying {attempts}/{MAX_ATTEMPTS}.")
 				continue

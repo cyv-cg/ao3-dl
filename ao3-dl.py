@@ -27,6 +27,7 @@ class Options:
 	pdf: Optional[bool]
 	epub: Optional[bool]
 	html: Optional[bool]
+	cookies: Optional[str]
 
 def _get_thumbnail(directory: str, file_name: str) -> str:
 	pdf_path: str = f"{directory}/{file_name}.pdf"
@@ -217,7 +218,7 @@ def print_epub(cover_data: str, work: Work, series: Optional[Series], out_dir: s
 
 	ebookmeta.set_metadata(epub_title, meta)
 
-def _parse_works(url: str) -> Optional[Union[Work, Series, User]]:
+def _parse_works(url: str, cookies: Optional[dict[str, Any]]) -> Optional[Union[Work, Series, User]]:
 	content_id: Optional[int] = helpers.extract_int(url)
 	if url.isdigit():
 		content_id = int(url)
@@ -225,7 +226,7 @@ def _parse_works(url: str) -> Optional[Union[Work, Series, User]]:
 	if "works/" in url:
 		if content_id is None:
 			return None
-		return Work(content_id)
+		return Work(content_id, cookies=cookies)
 	if "series/" in url:
 		if content_id is None:
 			return None
@@ -239,7 +240,7 @@ def _parse_works(url: str) -> Optional[Union[Work, Series, User]]:
 def _dl_work(work: Work, args: Options, series: Optional[Series] = None) -> None:
 	try:
 		if work.restricted:
-			raise PermissionError(f"{args.url} is restricted, you'll need to log in and download manually :(")
+			raise PermissionError(f"{args.url} is restricted, you'll need to log in and download it manually or pass in a cookies file with the correct authorization using --cookies.")
 		print(f"""Downloading '{work.title}'""")
 		ao3_dl(work=work, series=series, args=args)
 	except Exception as ex: # pylint: disable=broad-exception-caught
@@ -251,7 +252,22 @@ def _has_output_formats(args: Options) -> bool:
 		return args.pdf or args.epub or args.html
 	return False
 
+def _parse_cookies(cookie_file: str) -> dict[str, str]:
+	cookies: dict[str, str] = {}
+	with open(cookie_file, "r", encoding="utf-8") as fp:
+		for line in fp:
+			if len(line.strip()) == 0:
+				continue
+			if not re.match(r'^\#', line):
+				line_fields = line.strip().split('\t')
+				cookies[line_fields[5]] = line_fields[6]
+	return cookies
+
 def main(args: Options) -> None:
+	cookies: Optional[dict[str, str]] = None
+	if args.cookies is not None:
+		cookies = _parse_cookies(args.cookies)
+
 	config: Optional[dict[str, Any]] = None
 	if os.path.exists(f"{LOCAL_DIR}/config.json"):
 		with open(f"{LOCAL_DIR}/config.json", "r", encoding="utf-8") as file:
@@ -279,7 +295,7 @@ def main(args: Options) -> None:
 		print("Select at least 1 output format: --pdf --epub --html")
 		sys.exit(1)
 
-	result: Optional[Union[Series | Work | User]] = _parse_works(match.group(0))
+	result: Optional[Union[Series | Work | User]] = _parse_works(match.group(0), cookies)
 	if isinstance(result, Series):
 		series: Series = result
 		print(f"""Downloading '{series.title}'""")
@@ -305,5 +321,7 @@ if __name__ == "__main__":
 	parser.add_argument('--pdf', action='store_true', help='Will export the parsed work as a pdf.')
 	parser.add_argument('--epub', action='store_true', help='Will export the parsed work as an epub.')
 	parser.add_argument('--html', action='store_true', help='Will export the parsed work as raw html.')
+
+	parser.add_argument('--cookies', type=str, help="File containing browser cookies - used to access restricted content.", required=False)
 
 	main(Options(**vars(parser.parse_args())))
