@@ -223,7 +223,7 @@ def _parse_works(url: str, cookies: Optional[dict[str, Any]]) -> Optional[Union[
 	if url.isdigit():
 		content_id = int(url)
 
-	if "works/" in url:
+	if "works/" in url or url.isdigit():
 		if content_id is None:
 			return None
 		return Work(content_id, cookies=cookies)
@@ -296,21 +296,24 @@ def main(args: Options) -> None:
 		sys.exit(1)
 
 	result: Optional[Union[Series | Work | User]] = _parse_works(match.group(0), cookies)
-	if isinstance(result, Series):
-		series: Series = result
-		print(f"""Downloading '{series.title}'""")
-		for entry in series.works:
-			_dl_work(work=entry, series=series, args=args)
-	elif isinstance(result, Work):
-		work: Work = result
-		_dl_work(work=work, args=args)
-	elif isinstance(result, User):
-		user: User = result
-		print(f"""Downloading all works from {user.username}""")
-		for entry in user.works:
-			_dl_work(work=entry, args=args)
+	if result is not None:
+		if isinstance(result, Series):
+			series: Series = result
+			print(f"""Downloading '{series.title}'""")
+			for entry in series.works:
+				_dl_work(work=entry, series=series, args=args)
+		elif isinstance(result, Work):
+			work: Work = result
+			_dl_work(work=work, args=args)
+		elif isinstance(result, User):
+			user: User = result
+			print(f"""Downloading all works from {user.username}""")
+			for entry in user.works:
+				_dl_work(work=entry, args=args)
 
-	print("Finished")
+		print("Finished")
+	else:
+		print(f"[ERROR] No content found at {args.url}")
 
 
 if __name__ == "__main__":
