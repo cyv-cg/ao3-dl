@@ -219,12 +219,16 @@ def print_epub(cover_data: str, work: Work, series: Optional[Series], out_dir: s
 
 def _parse_works(url: str) -> Optional[Union[Work, Series, User]]:
 	content_id: Optional[int] = helpers.extract_int(url)
-	if content_id is None:
-		return None
+	if url.isdigit():
+		content_id = int(url)
 
-	if "works/" in url or url.isdigit():
+	if "works/" in url:
+		if content_id is None:
+			return None
 		return Work(content_id)
 	if "series/" in url:
+		if content_id is None:
+			return None
 		return Series(content_id)
 	if "users/" in url:
 		username: str = url.split("/")[1]
@@ -247,9 +251,7 @@ def _has_output_formats(args: Options) -> bool:
 		return args.pdf or args.epub or args.html
 	return False
 
-def main(passed_args: argparse.Namespace) -> None:
-	args: Options = Options(**vars(passed_args))
-
+def main(args: Options) -> None:
 	config: Optional[dict[str, Any]] = None
 	if os.path.exists(f"{LOCAL_DIR}/config.json"):
 		with open(f"{LOCAL_DIR}/config.json", "r", encoding="utf-8") as file:
@@ -304,4 +306,4 @@ if __name__ == "__main__":
 	parser.add_argument('--epub', action='store_true', help='Will export the parsed work as an epub.')
 	parser.add_argument('--html', action='store_true', help='Will export the parsed work as raw html.')
 
-	main(parser.parse_args())
+	main(Options(**vars(parser.parse_args())))

@@ -1,11 +1,15 @@
 
+import sys
 from typing import Optional, Union
 from datetime import datetime
 
 import requests
+from requests.exceptions import ReadTimeout
 from bs4 import BeautifulSoup, ResultSet, Tag, PageElement
 
 from helpers import extract_int, NavStr
+
+MAX_ATTEMPTS: int = 5
 
 class Work:
 	class SeriesMetadata:
@@ -37,6 +41,8 @@ class Work:
 
 	chapter_list: list[Chapter]
 
+	active_series: Optional["Series"]
+
 	series: list[SeriesMetadata]
 	rating: str
 	warning: str
@@ -54,54 +60,73 @@ class Work:
 	characters: Optional[list[str]]
 	tags: Optional[list[str]]
 
-	def __init__(self, work_id: int):
+	def __init__(self, work_id: int, active_series: Optional["Series"] = None):
 		self.id = work_id
+		self.active_series = active_series
 
-		response = requests.get(self.url(), timeout=10)
-		if response.status_code != 200:
-			raise SystemError(response.status_code)
+		attempts: int = 1
+		success: bool = False
 
-		self.restricted = "restricted=true" in response.url
+		print(f"[INFO] Fetching work {work_id}")
 
-		if not self.restricted:
-			soup = BeautifulSoup(response.text, "html.parser")
+		while not success and attempts <= MAX_ATTEMPTS:
+			try:
+				response = requests.get(self.url(), timeout=10)
+				if response.status_code != 200:
+					attempts += 1
+					print(f"Unexpected error: {response.status_code}. Retrying {attempts}/{MAX_ATTEMPTS}.")
+					continue
+				success = True
 
-			self.title = self._get_title(soup)
-			self.author = self._get_author(soup)
+				self.restricted = "restricted=true" in response.url
 
-			self._get_meta(soup)
-			self._get_attached_series(soup)
+				if not self.restricted:
+					soup = BeautifulSoup(response.text, "html.parser")
 
-			# Remove "chapter text" heading
-			for heading in soup.find_all("h3", class_="landmark heading", id="work"):
-				heading.string = ""
+					self.title = self._get_title(soup)
+					self.author = self._get_author(soup)
 
-			self.chapter_list = []
-			if not self.is_single_chapter:
-				for i in range(self.released_chapters):
-					title: str | None = self._chapter_title(soup, i + 1)
+					self._get_meta(soup)
+					self._get_attached_series(soup)
 
-					content: NavStr = self._get_chapter_content(soup, i + 1)
-					if not isinstance(content, Tag):
-						continue
+					# Remove "chapter text" heading
+					for heading in soup.find_all("h3", class_="landmark heading", id="work"):
+						heading.string = ""
 
-					title_tag: Union[NavStr, int] = content.find("h3", class_="title")
+					self.chapter_list = []
+					if not self.is_single_chapter:
+						for i in range(self.released_chapters):
+							title: str | None = self._chapter_title(soup, i + 1)
 
-					if title is not None:
-						title = f"Chapter {i + 1}: {title}"
+							content: NavStr = self._get_chapter_content(soup, i + 1)
+							if not isinstance(content, Tag):
+								continue
+
+							title_tag: Union[NavStr, int] = content.find("h3", class_="title")
+
+							if title is not None:
+								title = f"Chapter {i + 1}: {title}"
+							else:
+								title = f"Chapter {i + 1}"
+
+							if isinstance(title_tag, Tag):
+								title_tag.string = title
+
+							self.chapter_list.append(Work.Chapter(title, content.prettify()))
 					else:
-						title = f"Chapter {i + 1}"
+						full_content: NavStr = soup.find("div", id="chapters")
+						if isinstance(full_content, Tag):
+							self.chapter_list.append(Work.Chapter(self.title, full_content.prettify()))
 
-					if isinstance(title_tag, Tag):
-						title_tag.string = title
+					self.content = soup.prettify()
+			except ReadTimeout:
+				attempts += 1
+				print(f"Connection timed out: Retrying {attempts}/{MAX_ATTEMPTS}.")
+				continue
 
-					self.chapter_list.append(Work.Chapter(title, content.prettify()))
-			else:
-				full_content: NavStr = soup.find("div", id="chapters")
-				if isinstance(full_content, Tag):
-					self.chapter_list.append(Work.Chapter(self.title, full_content.prettify()))
-
-			self.content = soup.prettify()
+		if not success or attempts > MAX_ATTEMPTS:
+			print("Failed to download. Try again.")
+			sys.exit(1)
 
 
 	def url(self) -> str:
@@ -162,14 +187,37 @@ class Work:
 
 	# Gets the number of entries in a given series
 	def _get_series_length(self, series_id: int) -> int:
-		response = requests.get(f"https://archiveofourown.org/series/{series_id}", timeout=10)
-		if response.status_code != 200:
-			raise SystemError(response.status_code)
-		soup = BeautifulSoup(response.text, "html.parser")
-		works_list: NavStr = soup.find("dd", class_="works")
-		if works_list is None:
-			return 0
-		return int(works_list.text)
+		if self.active_series is not None:
+			return self.active_series.length
+
+		print(f"[INFO] Fetching data on linked series {series_id}.")
+
+		attempts: int = 1
+		success: bool = False
+
+		while not success and attempts <= MAX_ATTEMPTS:
+			try:
+				response = requests.get(f"https://archiveofourown.org/series/{series_id}", timeout=10)
+				if response.status_code != 200:
+					attempts += 1
+					print(f"Unexpected error: {response.status_code}. Retrying {attempts}/{MAX_ATTEMPTS}.")
+					continue
+				success = True
+
+				soup = BeautifulSoup(response.text, "html.parser")
+				works_list: NavStr = soup.find("dd", class_="works")
+				if works_list is None:
+					return 0
+				return int(works_list.text)
+			except ReadTimeout:
+				attempts += 1
+				print(f"Connection timed out: Retrying {attempts}/{MAX_ATTEMPTS}.")
+				continue
+
+		if not success or attempts > MAX_ATTEMPTS:
+			print(f"Failed to fetch data for series {series_id}. Skipping.")
+		return 0
+
 	# Retreive metadata about the series (plural) that this work is attached to
 	def _get_attached_series(self, soup: BeautifulSoup) -> Optional[list[SeriesMetadata]]:
 		element: NavStr = soup.find("dd", class_="series")
@@ -247,14 +295,33 @@ class Series:
 	def __init__(self, series_id: int):
 		self.id = series_id
 
-		response = requests.get(self.url(), timeout=10)
-		if response.status_code != 200:
-			raise SystemError(response.status_code)
-		soup = BeautifulSoup(response.text, "html.parser")
+		print(f"[INFO] Fetching series {series_id}")
 
-		self.length = self._length(soup)
-		self.title = self._get_title(soup)
-		self._get_works(soup)
+		attempts: int = 1
+		success: bool = False
+
+		while not success and attempts <= MAX_ATTEMPTS:
+			try:
+				response = requests.get(self.url(), timeout=10)
+				if response.status_code != 200:
+					attempts += 1
+					print(f"Unexpected error: {response.status_code}. Retrying {attempts}/{MAX_ATTEMPTS}.")
+					continue
+				success = True
+
+				soup = BeautifulSoup(response.text, "html.parser")
+
+				self.length = self._length(soup)
+				self.title = self._get_title(soup)
+				self._get_works(soup)
+			except ReadTimeout:
+				attempts += 1
+				print(f"Connection timed out: Retrying {attempts}/{MAX_ATTEMPTS}.")
+				continue
+
+		if not success or attempts > MAX_ATTEMPTS:
+			print("Failed to download. Try again.")
+			sys.exit(1)
 
 	def url(self) -> str:
 		"""
@@ -273,7 +340,7 @@ class Series:
 			work_id: Optional[int] = extract_int(li.get("id").replace("work_", ""))
 			if work_id is None:
 				raise LookupError()
-			self.works.append(Work(work_id))
+			self.works.append(Work(work_id, self))
 
 	def _get_title(self, soup: BeautifulSoup) -> str:
 		title_element: NavStr = soup.find("h2", class_="heading")
@@ -295,20 +362,38 @@ class User:
 		self.username = username
 		self.works = []
 
-		response = requests.get(self.url(), timeout=10)
-		if response.status_code != 200:
-			raise SystemError(response.status_code)
-		soup = BeautifulSoup(response.text, "html.parser")
+		print(f"[INFO] Fetching works from {username}")
 
-		work_list: NavStr = soup.find("ol", class_="work index group")
-		if work_list is None:
-			raise LookupError("'work index group' element not found")
-		if isinstance(work_list, Tag):
-			for li in work_list.find_all("li"):
-				user_id: Optional[int] = extract_int(li.get("id"))
-				if user_id is None:
+		attempts: int = 1
+		success: bool = False
+
+		while not success and attempts <= MAX_ATTEMPTS:
+			try:
+				response = requests.get(self.url(), timeout=10)
+				if response.status_code != 200:
+					attempts += 1
+					print(f"Unexpected error: {response.status_code}. Retrying {attempts}/{MAX_ATTEMPTS}.")
 					continue
-				self.works.append(Work(user_id))
+				success = True
+				soup = BeautifulSoup(response.text, "html.parser")
+
+				work_list: NavStr = soup.find("ol", class_="work index group")
+				if work_list is None:
+					raise LookupError("'work index group' element not found")
+				if isinstance(work_list, Tag):
+					for li in work_list.find_all("li"):
+						user_id: Optional[int] = extract_int(li.get("id"))
+						if user_id is None:
+							continue
+						self.works.append(Work(user_id))
+			except ReadTimeout:
+				attempts += 1
+				print(f"Connection timed out: Retrying {attempts}/{MAX_ATTEMPTS}.")
+				continue
+
+		if not success or attempts > MAX_ATTEMPTS:
+			print("Failed to download. Try again.")
+			sys.exit(1)
 
 	def url(self) -> str:
 		"""
