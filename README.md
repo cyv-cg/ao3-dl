@@ -43,6 +43,9 @@ Save the cookies to a file and pass it in using `python ao3-dl.py --cookies /pat
 ### Install python dependencies:
 	pip install -r requirements.txt
 
+### WeasyPrint
+This utility relies on **WeasyPrint**, which can be not-so-simple to install on Windows. 
+Install it separately by following the instructions for your operating system [here](https://doc.courtbouillon.org/weasyprint/v63.0/first_steps.html).
 
 ### ~~Install npm:~~
 	sudo apt update
