@@ -3,6 +3,6 @@ beautifulsoup4==4.13.5
 requests==2.34.2
 types-requests==2.32.4.20250809
 EbookLib==0.18
-PyMuPdf==1.24.12
+PyMuPdf==1.28.0
 types-beautifulsoup4==4.12.0.20250516
 ebookmeta==1.2.11
