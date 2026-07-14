@@ -1,5 +1,5 @@
 WeasyPrint==63.0
-beautifulsoup4==4.13.5
+beautifulsoup4==4.15.0
 requests==2.34.2
 types-requests==2.32.4.20250809
 EbookLib==0.18
